@@ -31,11 +31,11 @@ Q: 2進数 0.101 を10進数で表したものはどれか。
 ID: 01-04
 LV: 1
 Q: 論理式 NOT（A AND B）と常に等しい論理式はどれか。
-ア: （NOT A）OR（NOT B）
+ア: NOT（A OR B）
 イ: （NOT A）AND（NOT B）
 ウ: A OR B
-エ: NOT（A OR B）
-正解: ア
+エ: （NOT A）OR（NOT B）
+正解: エ
 解説: ド・モルガンの法則により、NOT（A AND B）＝（NOT A）OR（NOT B）です。AND の否定は、それぞれを否定して OR にします。
 ---
 ID: 01-05
