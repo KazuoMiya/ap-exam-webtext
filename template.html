@@ -382,14 +382,35 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
   var mem = { h: {}, b: {} };
   try { var raw = localStorage.getItem(KEY); if (raw) { var p = JSON.parse(raw); if (p && p.h) mem = { h: p.h || {}, b: p.b || {} }; } } catch (e) {}
   function save() { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) {} }
+  /* 記録の形式: [解答回数, 正解回数, 直近が正解か, 初めて解いたときに正解したか, 正解した日の一覧]
+     ・正答率 … 初めて解いたときの正答率。解説を読んだ直後の解き直しでは上がらない
+     ・定着   … 直近の解答が正解で、かつ別々の2日以上で正解していること
+     ・要復習 … 一度でも間違え、まだ定着していない問題
+     旧形式（3要素）の記録は、全問正解のときだけ初見正解とみなし、正解した日は空として扱う */
+  function today() { var d = new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+  function norm(r) { if (r.length < 5) { r[3] = (r[0] > 0 && r[0] === r[1]) ? 1 : 0; r[4] = []; } return r; }
   function record(id, ok) {
-    var r = mem.h[id] || [0, 0, 0];
-    r[0] += 1; if (ok) r[1] += 1; r[2] = ok ? 1 : 0; mem.h[id] = r; save();
+    var r = mem.h[id];
+    if (!r) r = [0, 0, 0, ok ? 1 : 0, []]; else norm(r);
+    r[0] += 1; r[2] = ok ? 1 : 0;
+    if (ok) { r[1] += 1; var d = today(); if (r[4].indexOf(d) < 0) { r[4].push(d); if (r[4].length > 3) r[4] = r[4].slice(-3); } }
+    mem.h[id] = r; save();
+  }
+  function status(id) {
+    var r = mem.h[id]; if (!r) return "todo"; norm(r);
+    if (r[2] && r[4].length >= 2) return "mastered";
+    return r[1] < r[0] ? "review" : "pending";
   }
   function stat(list) {
-    var done = 0, ok = 0, tries = 0, right = 0;
-    list.forEach(function (q) { var r = mem.h[q.id]; if (r) { done++; if (r[2]) ok++; tries += r[0]; right += r[1]; } });
-    return { total: list.length, done: done, lastOk: ok, tries: tries, right: right };
+    var done = 0, first = 0, tries = 0, mastered = 0, review = 0, pending = 0;
+    list.forEach(function (q) { var r = mem.h[q.id]; if (r) { norm(r); done++; if (r[3]) first++; tries += r[0]; var s = status(q.id); if (s === "mastered") mastered++; else if (s === "review") review++; else pending++; } });
+    return { total: list.length, done: done, first: first, tries: tries, mastered: mastered, review: review, pending: pending };
+  }
+  function orderFor(q, hadRecord) {
+    var o = q.c.map(function (_, i) { return i; });
+    if (!hadRecord) return o;
+    var s; do { s = shuffle(o); } while (s.every(function (v, i) { return v === i; }));
+    return s;
   }
 
   /* ---------- 共通 ---------- */
@@ -414,7 +435,7 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
       s += "<h4>" + ar + "</h4>";
       CH.filter(function (c) { return c.area === ar; }).forEach(function (c) {
         var st = stat(qByCh[c.id] || []);
-        s += '<a href="#ch-' + c.id + '" data-r="ch-' + c.id + '"><span class="n">' + c.no + "</span><span>" + h(c.title) + '</span><span class="pct">' + (st.done ? pct(st.lastOk, st.total) + "%" : "") + "</span></a>";
+        s += '<a href="#ch-' + c.id + '" data-r="ch-' + c.id + '"><span class="n">' + c.no + "</span><span>" + h(c.title) + '</span><span class="pct">' + (st.done ? pct(st.mastered, st.total) + "%" : "") + "</span></a>";
       });
     });
     s += "<h4>科目B対策</h4>" + '<a href="#b-method" data-r="b-method"><span class="n"></span><span>記述式の解き方</span></a>';
@@ -482,7 +503,7 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
       "</div>";
     AREAS.forEach(function (ar) { s += '<h2 class="section-title">' + ar + '</h2><div class="chlist">' + chRows(ar) + "</div>"; });
     s += '<h2 class="section-title">科目B 記述式演習</h2><div class="grid c2">' + kbCards() + "</div>";
-    if (all.done) s += '<p class="note" style="margin-top:18px">これまでに ' + all.done + " 問を解き、直近の解答で " + all.lastOk + " 問正解しています。<a href=\"#progress\">学習の記録を見る</a></p>";
+    if (all.done) s += '<p class="note" style="margin-top:18px">これまでに ' + all.done + " 問を解き、初めて解いたときの正答率は " + pct(all.first, all.done) + "%、定着した問題は " + all.mastered + " 問です。<a href=\"#progress\">学習の記録を見る</a></p>";
     setView(s, true);
   }
 
@@ -508,7 +529,7 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     s += '<section class="drill" id="drill"><h2>章末演習</h2><p class="note">この章の問題は全' + qs.length + "問です。基本から順に進めると、本番レベルまで無理なく上がれます。</p><div class=\"opts\">";
     [1, 2, 3].forEach(function (lv) {
       var st = stat(by[lv]);
-      s += '<button type="button" class="opt" data-start="' + id + "|" + lv + '"' + (by[lv].length ? "" : " disabled") + "><b>" + lvChip(lv) + " " + by[lv].length + "問</b><span>" + LVDESC[lv] + (st.done ? "・正答 " + st.lastOk + "/" + st.total : "") + "</span></button>";
+      s += '<button type="button" class="opt" data-start="' + id + "|" + lv + '"' + (by[lv].length ? "" : " disabled") + "><b>" + lvChip(lv) + " " + by[lv].length + "問</b><span>" + LVDESC[lv] + (st.done ? "・定着 " + st.mastered + "/" + st.total : "") + "</span></button>";
     });
     s += '<button type="button" class="opt" data-start="' + id + '|all"><b>すべて ' + qs.length + "問</b><span>基本から上級まで通しで解く</span></button></div></section>";
     var prev = CH[idx - 1], next = CH[idx + 1];
@@ -523,11 +544,13 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
   function pool(cfg) {
     var list = QS.filter(function (q) { return cfg.chs.indexOf(q.ch) >= 0 && cfg.lvs.indexOf(q.lv) >= 0; });
     if (cfg.mode === "new") list = list.filter(function (q) { return !mem.h[q.id]; });
-    if (cfg.mode === "wrong") list = list.filter(function (q) { var r = mem.h[q.id]; return r && !r[2]; });
+    if (cfg.mode === "wrong") list = list.filter(function (q) { return status(q.id) === "review"; });
+    if (cfg.mode === "unfixed") list = list.filter(function (q) { var s = status(q.id); return s === "review" || s === "pending"; });
     return list;
   }
   function startSession(list, title, back) {
-    session = { list: list.map(function (q) { return q.id; }), i: 0, ans: {}, title: title, back: back || "practice", done: false };
+    var ord = {}; list.forEach(function (q) { ord[q.id] = orderFor(q, !!mem.h[q.id]); });
+    session = { list: list.map(function (q) { return q.id; }), i: 0, ans: {}, ord: ord, title: title, back: back || "practice", done: false };
     go("practice");
   }
   function startFromCfg(cfg, title) {
@@ -556,7 +579,7 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     s += '</fieldset><fieldset><legend>レベル</legend><div class="radios">';
     [1, 2, 3].forEach(function (lv) { s += '<label><input type="checkbox" id="lv-' + lv + '" name="lv" value="' + lv + '"' + (setup.lvs.indexOf(lv) >= 0 ? " checked" : "") + "> " + lvChip(lv) + " " + LVDESC[lv] + "</label>"; });
     s += '</div></fieldset><fieldset><legend>出題方法</legend><div class="radios">';
-    [["order", "章順・やさしい順"], ["random", "ランダム"], ["new", "まだ解いていない問題"], ["wrong", "直近で間違えた問題"]].forEach(function (m) {
+    [["order", "章順・やさしい順"], ["random", "ランダム"], ["new", "まだ解いていない問題"], ["wrong", "要復習（間違えて、まだ定着していない問題）"], ["unfixed", "定着していない問題（要復習と、別の日の確認待ち）"]].forEach(function (m) {
       s += '<label><input type="radio" id="mode-' + m[0] + '" name="mode" value="' + m[0] + '"' + (setup.mode === m[0] ? " checked" : "") + "> " + m[1] + "</label>";
     });
     s += '</div></fieldset><div class="row"><label for="countSel">問題数</label><select id="countSel" name="count">';
@@ -592,7 +615,9 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     s += '<div class="prog"><i style="width:' + pct(S.i, S.list.length) + '%"></i></div>';
     s += '<div class="qcard"><div class="qmeta"><span class="num">問 ' + (S.i + 1) + " / " + S.list.length + "</span>" + lvChip(q.lv) + '<span class="chip muted">' + chLabel(c) + " " + h(c.title) + "</span></div>";
     s += '<div class="q-body">' + q.q + '</div><ol class="choices">';
-    q.c.forEach(function (txt, k) {
+    var ord = S.ord[q.id], shuffled = ord.some(function (v, i) { return v !== i; });
+    ord.forEach(function (k) {
+      var txt = q.c[k];
       var cls = "";
       var mark = "";
       if (picked !== null) {
@@ -602,12 +627,13 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
       s += '<li><button type="button" class="choice' + cls + '" data-k="' + k + '"' + (picked !== null ? " disabled" : "") + '><span class="k">' + KANA[k] + "</span><span>" + txt + '</span><span class="mark">' + mark + "</span></button></li>";
     });
     s += "</ol>";
+    if (shuffled) s += '<p class="note shufnote">解き直しなので、選択肢の順番を入れ替えています（記号は元のままです）。</p>';
     if (picked !== null) {
       var ok = picked === q.a;
       s += '<div class="verdict ' + (ok ? "ok" : "ng") + '">' + (ok ? "正解です" : "不正解です。正解は " + KANA[q.a]) + '</div><div class="exp">' + q.e + "</div>";
       s += '<div class="qnav"><button class="btn primary" type="button" data-act="next">' + (S.i + 1 < S.list.length ? "次の問題へ" : "結果を見る") + '</button><span class="kbd-hint">Enter でも進めます</span></div>';
     } else {
-      s += '<div class="qnav"><span class="kbd-hint">1〜4 キーでも選べます</span></div>';
+      s += '<div class="qnav"><span class="kbd-hint">1〜4 キーで、上から順に選べます</span></div>';
     }
     s += "</div>";
     setView(s);
@@ -662,7 +688,8 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     var picked = [];
     CH.forEach(function (c) { picked = picked.concat(shuffle(qByCh[c.id] || []).slice(0, EXAM_ALLOC[c.id] || 0)); });
     picked.sort(function (a, b) { return a.ch < b.ch ? -1 : a.ch > b.ch ? 1 : 0; });
-    return { list: picked.map(function (q) { return q.id; }), ans: {}, flag: {}, i: 0, start: Date.now(), dur: 150 * 60 * 1000, done: false, grid: false };
+    var ord = {}; picked.forEach(function (q) { ord[q.id] = orderFor(q, !!mem.h[q.id]); });
+    return { list: picked.map(function (q) { return q.id; }), ans: {}, ord: ord, flag: {}, i: 0, start: Date.now(), dur: 150 * 60 * 1000, done: false, grid: false };
   }
   function fmt(ms) { ms = Math.max(0, ms); var t = Math.floor(ms / 1000); var hh = Math.floor(t / 3600), mm = Math.floor(t % 3600 / 60), ss = t % 60; return hh + ":" + String(mm).padStart(2, "0") + ":" + String(ss).padStart(2, "0"); }
   function viewExam() {
@@ -693,7 +720,7 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     }
     s += '<div class="qcard"><div class="qmeta"><span class="num">問' + (E.i + 1) + '</span><span class="chip muted">' + h(c.area) + "</span>" + '<span class="spacer"></span><label class="note"><input type="checkbox" id="flagChk"' + (E.flag[q.id] ? " checked" : "") + "> 見直す</label></div>";
     s += '<div class="q-body">' + q.q + '</div><ol class="choices">';
-    q.c.forEach(function (t, k) { s += '<li><button type="button" class="choice' + (E.ans[q.id] === k ? " is-picked" : "") + '" data-ek="' + k + '"><span class="k">' + KANA[k] + "</span><span>" + t + '</span><span class="mark"></span></button></li>'; });
+    E.ord[q.id].forEach(function (k) { var t = q.c[k]; s += '<li><button type="button" class="choice' + (E.ans[q.id] === k ? " is-picked" : "") + '" data-ek="' + k + '"><span class="k">' + KANA[k] + "</span><span>" + t + '</span><span class="mark"></span></button></li>'; });
     s += '</ol><div class="qnav"><button class="btn" type="button" data-act="exam-prev"' + (E.i ? "" : " disabled") + '>前の問題</button><button class="btn primary" type="button" data-act="exam-next"' + (E.i + 1 < E.list.length ? "" : " disabled") + '>次の問題</button><span class="kbd-hint">1〜4 で選択、← → で移動</span></div></div>';
     s += '<div class="tools"><div><label for="examMemo">メモ（本番と同じく画面内だけで）</label><textarea id="examMemo" rows="5">' + h(E.memo || "") + '</textarea></div><div><label for="calcIn">電卓（式を入力して Enter）</label><input id="calcIn" type="text" inputmode="decimal" autocomplete="off" placeholder="例 (240-3)/240*100"><output id="calcOut" for="calcIn"></output></div></div>';
     setView(s);
@@ -791,19 +818,20 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
   /* ---------- 学習の記録 ---------- */
   function viewProgress() {
     var all = stat(QS);
-    var wrongN = QS.filter(function (q) { var r = mem.h[q.id]; return r && !r[2]; }).length;
+    var wrongN = all.review, unfixedN = all.review + all.pending;
     var s = "<h1>学習の記録</h1><p class=\"lead\">記録はこのブラウザの中にだけ保存されます。別の端末やブラウザには引き継がれません。</p>";
-    s += '<div class="tiles"><div class="tile"><small>解いた問題</small><b>' + all.done + " / " + all.total + '</b></div><div class="tile"><small>直近の解答で正解</small><b>' + pct(all.lastOk, all.done) + '%</b></div><div class="tile"><small>延べ解答数</small><b>' + all.tries + '</b></div><div class="tile"><small>直近で間違えた問題</small><b>' + wrongN + "</b></div></div>";
-    s += '<div class="row" style="margin-bottom:18px"><button class="btn primary" type="button" data-act="drill-wrong"' + (wrongN ? "" : " disabled") + '>間違えた問題を復習</button><button class="btn" type="button" data-act="drill-new"' + (all.done < all.total ? "" : " disabled") + ">まだ解いていない問題を解く</button></div>";
+    s += '<div class="tiles"><div class="tile"><small>解いた問題</small><b>' + all.done + " / " + all.total + '</b></div><div class="tile"><small>初見の正答率</small><b>' + (all.done ? pct(all.first, all.done) + "%" : "－") + '</b></div><div class="tile"><small>定着した問題</small><b>' + all.mastered + '</b></div><div class="tile"><small>要復習</small><b>' + wrongN + "</b></div></div>";
+    s += '<p class="note">正答率は、初めて解いたときの結果だけで数えます。解説を読んだ後の解き直しでは上がりません。定着は、直近の解答が正解で、別々の2日以上で正解した問題です。要復習は、一度でも間違えて、まだ定着していない問題です。解き直すときは、選択肢の順番を入れ替えます。</p>';
+    s += '<div class="row" style="margin-bottom:18px"><button class="btn primary" type="button" data-act="drill-wrong"' + (wrongN ? "" : " disabled") + '>要復習の問題を解く</button><button class="btn" type="button" data-act="drill-unfixed"' + (unfixedN ? "" : " disabled") + '>定着していない問題を解き直す</button><button class="btn" type="button" data-act="drill-new"' + (all.done < all.total ? "" : " disabled") + ">まだ解いていない問題を解く</button></div>";
     var rows = CH.map(function (c) {
       var list = qByCh[c.id] || [];
       var st = stat(list);
-      var p = pct(st.lastOk, st.done);
-      var lv = [1, 2, 3].map(function (l) { var x = stat(list.filter(function (q) { return q.lv === l; })); return x.done ? pct(x.lastOk, x.done) + "%" : "－"; });
-      return '<tr><td><a href="#ch-' + c.id + '">' + chLabel(c) + " " + h(c.title) + "</a></td><td>" + st.done + "/" + st.total + '</td><td><span class="mini' + (st.done && p < 60 ? " lowv" : "") + '"><i style="width:' + p + '%"></i></span>' + (st.done ? p + "%" : "－") + "</td><td>" + lv.join(" / ") + "</td></tr>";
+      var p = pct(st.first, st.done);
+      var lv = [1, 2, 3].map(function (l) { var x = stat(list.filter(function (q) { return q.lv === l; })); return x.done ? pct(x.first, x.done) + "%" : "－"; });
+      return '<tr><td><a href="#ch-' + c.id + '">' + chLabel(c) + " " + h(c.title) + "</a></td><td>" + st.done + "/" + st.total + '</td><td><span class="mini' + (st.done && p < 60 ? " lowv" : "") + '"><i style="width:' + p + '%"></i></span>' + (st.done ? p + "%" : "－") + "</td><td>" + lv.join(" / ") + "</td><td>" + st.mastered + "</td><td>" + st.review + "</td></tr>";
     }).join("");
-    s += '<div class="ptable"><div class="tw"><table><thead><tr><th>章</th><th>解答</th><th>正答率</th><th>基本 / 標準 / 上級</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
-    s += '<p class="note">正答率が60%未満の章は赤で表示します。章名から解説に戻れます。</p><div class="row" style="margin-top:24px"><button class="btn danger" type="button" data-act="reset">記録をすべて消去</button></div>';
+    s += '<div class="ptable"><div class="tw"><table><thead><tr><th>章</th><th>解答</th><th>初見の正答率</th><th>基本 / 標準 / 上級</th><th>定着</th><th>要復習</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+    s += '<p class="note">初見の正答率が60%未満の章は赤で表示します。章名から解説に戻れます。</p><div class="row" style="margin-top:24px"><button class="btn danger" type="button" data-act="reset">記録をすべて消去</button></div>';
     setView(s, true);
   }
 
@@ -858,7 +886,8 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     }
     else if (act === "exam-new") { exam = null; viewExamIntro(); }
     else if (act === "exam-wrong") { var ew = exam.list.filter(function (id) { return exam.ans[id] !== qById[id].a; }).map(function (id) { return qById[id]; }); startSession(ew, "模擬科目A：間違えた問題"); }
-    else if (act === "drill-wrong") { session = null; startFromCfg({ chs: CH.map(function (c) { return c.id; }), lvs: [1, 2, 3], mode: "wrong", count: "all" }, "復習：直近で間違えた問題"); }
+    else if (act === "drill-wrong") { session = null; startFromCfg({ chs: CH.map(function (c) { return c.id; }), lvs: [1, 2, 3], mode: "wrong", count: "all" }, "復習：要復習の問題"); }
+    else if (act === "drill-unfixed") { session = null; startFromCfg({ chs: CH.map(function (c) { return c.id; }), lvs: [1, 2, 3], mode: "unfixed", count: "all" }, "復習：定着していない問題"); }
     else if (act === "drill-new") { session = null; startFromCfg({ chs: CH.map(function (c) { return c.id; }), lvs: [1, 2, 3], mode: "new", count: "20" }, "まだ解いていない問題"); }
     else if (act === "reset") confirmBox("記録を消去しますか", "このブラウザに保存した解答記録と科目Bの下書きをすべて消去します。元に戻せません。", "消去する", function () { mem = { h: {}, b: {} }; save(); route(); });
   });
@@ -870,10 +899,10 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     var n = { "1": 0, "2": 1, "3": 2, "4": 3 }[e.key];
     if (r === "practice" && session && !session.done) {
       var q = qById[session.list[session.i]];
-      if (n !== undefined && !session.ans.hasOwnProperty(q.id)) { e.preventDefault(); answer(n); }
+      if (n !== undefined && !session.ans.hasOwnProperty(q.id)) { e.preventDefault(); answer(session.ord[q.id][n]); }
       else if ((e.key === "Enter" || e.key === "ArrowRight") && session.ans.hasOwnProperty(q.id)) { e.preventDefault(); nextQ(); }
     } else if (r === "exam" && exam && !exam.done) {
-      if (n !== undefined) { exam.ans[exam.list[exam.i]] = n; viewExamQ(); }
+      if (n !== undefined) { exam.ans[exam.list[exam.i]] = exam.ord[exam.list[exam.i]][n]; viewExamQ(); }
       else if (e.key === "ArrowRight" && exam.i + 1 < exam.list.length) { exam.i++; viewExamQ(); }
       else if (e.key === "ArrowLeft" && exam.i) { exam.i--; viewExamQ(); }
     }

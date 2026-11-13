@@ -23,6 +23,12 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+      - name: 問題データの検証（整合性、長さの偏り、計算の照合）
+        run: |
+          python tools/validate.py
+          python tools/tell.py
+          python tools/verify_calc.py
+          python tools/verify_b.py
       - run: python build.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
