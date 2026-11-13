@@ -60,9 +60,12 @@ def add_section_ids(html, prefix):
 
 def load_chapters():
     chapters = []
-    for p in sorted((SRC / "chapters").glob("*.md")):
+    for p in sorted((SRC / "chapters").glob("[0-9][0-9].md")):
         meta, body = split_header(p.read_text(encoding="utf-8"))
         cid = p.stem
+        # NN-*.md は補講（ヘッダなし）。番号順に本文の後ろへつなぐ
+        for extra in sorted((SRC / "chapters").glob(cid + "-*.md")):
+            body += "\n\n" + extra.read_text(encoding="utf-8")
         html, secs = add_section_ids(md(body), f"c{cid}")
         chapters.append({
             "id": cid,
@@ -107,7 +110,7 @@ def load_questions(chapter_ids):
     out = []
     seen = set()
     for p in sorted((SRC / "questions").glob("*.txt")):
-        ch = p.stem
+        ch = p.stem[:2]
         if ch not in chapter_ids:
             errors.append(f"{p.name}: 対応する章がありません")
         raw = p.read_text(encoding="utf-8")

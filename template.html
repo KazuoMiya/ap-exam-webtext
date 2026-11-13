@@ -300,6 +300,13 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
 .qgrid button.flag::after { content: ""; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
 .qgrid button.r-ok { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
 .qgrid button.r-ng { background: var(--ng-soft); border-color: var(--ng); color: var(--ng); }
+.tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 14px; }
+.tools label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.tools textarea, .tools input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface); font-family: var(--font-mono); font-size: 14px; }
+.tools output { display: block; margin-top: 8px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; min-height: 1.6em; }
+.fig { margin: 18px 0; padding: 14px 12px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow-x: auto; text-align: center; }
+.fig svg { max-width: 100%; height: auto; font-family: var(--font-body); }
+.fig figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; }
 .overlay { position: fixed; inset: 0; background: rgba(10, 14, 20, .45); display: grid; place-items: center; z-index: 50; padding: 16px; }
 .dialog { background: var(--surface); border-radius: 14px; padding: 20px 22px; max-width: 420px; width: 100%; box-shadow: var(--shadow); }
 .dialog h3 { margin: 0 0 8px; }
@@ -358,7 +365,8 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
   var LVNAME = { 1: "基本", 2: "標準", 3: "上級" };
   var LVDESC = { 1: "用語と定義を固める", 2: "科目A本番レベル", 3: "計算・複合・科目Bへの橋渡し" };
   var AREAS = ["テクノロジ系", "マネジメント系", "ストラテジ系"];
-  var EXAM_ALLOC = { "テクノロジ系": 50, "マネジメント系": 10, "ストラテジ系": 20 };
+  /* 本番の科目Aの分野比率に合わせた章ごとの出題数（合計80） */
+  var EXAM_ALLOC = { "01": 4, "02": 3, "03": 4, "04": 4, "05": 4, "06": 3, "07": 2, "08": 5, "09": 5, "10": 10, "11": 6, "12": 4, "13": 3, "14": 3, "15": 5, "16": 5, "17": 3, "18": 4, "19": 3 };
   var chById = {}, qById = {}, kbById = {};
   CH.forEach(function (c) { chById[c.id] = c; });
   QS.forEach(function (q) { qById[q.id] = q; });
@@ -410,7 +418,7 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
       });
     });
     s += "<h4>科目B対策</h4>" + '<a href="#b-method" data-r="b-method"><span class="n"></span><span>記述式の解き方</span></a>';
-    KB.forEach(function (k, i) { s += '<a href="#b-' + k.id + '" data-r="b-' + k.id + '"><span class="n">B' + (i + 1) + "</span><span>" + h(k.field) + "</span></a>"; });
+    KB.forEach(function (k, i) { s += '<a href="#b-' + k.id + '" data-r="b-' + k.id + '"><span class="n">B' + (i + 1) + "</span><span>" + h(k.title) + "</span></a>"; });
     s += "<h4>演習と記録</h4>" +
       '<a href="#practice" data-r="practice"><span class="n"></span><span>問題演習</span></a>' +
       '<a href="#exam" data-r="exam"><span class="n"></span><span>模擬科目A（80問）</span></a>' +
@@ -652,15 +660,7 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
   var exam = null;
   function buildExam() {
     var picked = [];
-    AREAS.forEach(function (ar) {
-      var chs = CH.filter(function (c) { return c.area === ar; });
-      var total = chs.reduce(function (n, c) { return n + (qByCh[c.id] || []).length; }, 0);
-      var need = EXAM_ALLOC[ar];
-      var alloc = chs.map(function (c) { var n = (qByCh[c.id] || []).length; return { c: c, n: n, k: Math.floor(need * n / total), r: (need * n / total) % 1 }; });
-      var left = need - alloc.reduce(function (n, x) { return n + x.k; }, 0);
-      alloc.slice().sort(function (a, b) { return b.r - a.r; }).forEach(function (x) { if (left > 0 && x.k < x.n) { x.k++; left--; } });
-      alloc.forEach(function (x) { picked = picked.concat(shuffle(qByCh[x.c.id] || []).slice(0, x.k)); });
-    });
+    CH.forEach(function (c) { picked = picked.concat(shuffle(qByCh[c.id] || []).slice(0, EXAM_ALLOC[c.id] || 0)); });
     picked.sort(function (a, b) { return a.ch < b.ch ? -1 : a.ch > b.ch ? 1 : 0; });
     return { list: picked.map(function (q) { return q.id; }), ans: {}, flag: {}, i: 0, start: Date.now(), dur: 150 * 60 * 1000, done: false, grid: false };
   }
@@ -671,9 +671,9 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     viewExamQ();
   }
   function viewExamIntro() {
-    var s = "<h1>模擬科目A</h1><p class=\"lead\">本番と同じ80問・150分・四肢択一です。テクノロジ系50問、マネジメント系10問、ストラテジ系20問を、収録問題から毎回ランダムに組みます。解答中は正誤を表示せず、終了後にまとめて採点します。</p>";
+    var s = "<h1>模擬科目A</h1><p class=\"lead\">本番と同じ80問・150分・四肢択一です。テクノロジ系50問（うちセキュリティ10問）、マネジメント系10問、ストラテジ系20問を、本番の分野比率に合わせて収録問題から毎回ランダムに組みます。解答中は正誤を表示せず、終了後にまとめて採点します。</p>";
     s += '<dl class="facts"><div><dt>出題数</dt><dd>80問（全問必須）</dd></div><div><dt>制限時間</dt><dd>150分</dd></div><div><dt>配点</dt><dd>1問1.25点・100点満点</dd></div><div><dt>合格の目安</dt><dd>60点（48問正解）以上</dd></div></dl>';
-    s += '<p class="note">本番のCBTでは試験画面上のメモ機能と電卓機能が使えます。この模擬試験では手元の紙と電卓を使ってください。途中でほかのページを開いても時間は進み続け、戻ると再開できます。</p>';
+    s += '<p class="note">本番のCBTでは紙と筆記用具を使えず、試験画面のメモ機能と電卓機能だけで解きます。この模擬試験にも画面内のメモと電卓を用意したので、紙を使わずに解く練習をしてください。途中でほかのページを開いても時間は進み続け、戻ると再開できます。</p>';
     s += '<div class="row" style="margin-top:14px"><button class="btn primary" type="button" data-act="exam-start">模擬試験を始める</button></div>';
     setView(s);
   }
@@ -695,7 +695,20 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     s += '<div class="q-body">' + q.q + '</div><ol class="choices">';
     q.c.forEach(function (t, k) { s += '<li><button type="button" class="choice' + (E.ans[q.id] === k ? " is-picked" : "") + '" data-ek="' + k + '"><span class="k">' + KANA[k] + "</span><span>" + t + '</span><span class="mark"></span></button></li>'; });
     s += '</ol><div class="qnav"><button class="btn" type="button" data-act="exam-prev"' + (E.i ? "" : " disabled") + '>前の問題</button><button class="btn primary" type="button" data-act="exam-next"' + (E.i + 1 < E.list.length ? "" : " disabled") + '>次の問題</button><span class="kbd-hint">1〜4 で選択、← → で移動</span></div></div>';
+    s += '<div class="tools"><div><label for="examMemo">メモ（本番と同じく画面内だけで）</label><textarea id="examMemo" rows="5">' + h(E.memo || "") + '</textarea></div><div><label for="calcIn">電卓（式を入力して Enter）</label><input id="calcIn" type="text" inputmode="decimal" autocomplete="off" placeholder="例 (240-3)/240*100"><output id="calcOut" for="calcIn"></output></div></div>';
     setView(s);
+    var memoEl = document.getElementById("examMemo");
+    memoEl.addEventListener("input", function () { E.memo = memoEl.value; });
+    var calcIn = document.getElementById("calcIn"), calcOut = document.getElementById("calcOut");
+    calcOut.textContent = E.calc || "";
+    calcIn.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Enter") return;
+      var ex = calcIn.value.replace(/[×＊]/g, "*").replace(/[÷／]/g, "/").replace(/[−－]/g, "-").replace(/＋/g, "+").replace(/\^/g, "**").replace(/,/g, "");
+      var out;
+      if (!/^[0-9+\-*/().\s]+$/.test(ex)) out = "数字と + - * / ^ ( ) だけ使えます";
+      else { try { var v = Function('"use strict";return (' + ex + ")")(); out = calcIn.value + " = " + (Math.round(v * 1e10) / 1e10); } catch (err) { out = "式を確認してください"; } }
+      E.calc = out; calcOut.textContent = out;
+    });
     var fc = document.getElementById("flagChk");
     if (fc) fc.addEventListener("change", function () { E.flag[q.id] = fc.checked; });
     if (!timerId) timerId = setInterval(tick, 1000);
@@ -751,7 +764,7 @@ details.rev .rev-in { padding: 0 16px 12px; border-top: 1px solid var(--line); }
     }).join("");
   }
   function viewKBList() {
-    setView("<h1>科目B 記述式演習</h1><p class=\"lead\">本番の科目Bは11問から5問（問1の情報セキュリティは必須）を150分で解きます。1問あたりの目安は30分です。先に<a href=\"#b-method\">記述式の解き方</a>を読んでから取り組むと効果的です。</p><div class=\"grid c2\">" + kbCards() + "</div>", true);
+    setView("<h1>科目B 記述式演習</h1><p class=\"lead\">本番の科目Bは11問から5問（問1の情報セキュリティは必須）を150分で解きます。問題選択と見直しの時間を除くと、1問に使えるのは25分前後です。「本番級」の演習は問題文の長さも本番に合わせてあります。先に<a href=\"#b-method\">記述式の解き方</a>を読んでから取り組むと効果的です。</p><div class=\"grid c2\">" + kbCards() + "</div>", true);
   }
   function viewKB(id) {
     var k = kbById[id], i = KB.indexOf(k);
