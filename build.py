@@ -198,6 +198,7 @@ def main():
     js = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     tpl = (ROOT / "template.html").read_text(encoding="utf-8")
     out = tpl.replace("/*__DATA__*/null", js)
+    (ROOT / "dist").mkdir(exist_ok=True)
     (ROOT / "dist" / "index.html").write_text(out, encoding="utf-8")
 
     # 統計
