@@ -108,7 +108,91 @@ add("10-2", f"（2）**{next(k for k in range(1, 99) if (120 + 5 * k) * 1e4 / 20
 add("10-3", f"（1）**{2 + 4 + 1 + 0.5 + 1}時間**、**{'満たす' if 8.5 <= 8 else '満たさない'}**"); add("10-3", f"（2）**{4}本**"); add("10-3", f"（1）**{n(0.5 + 0.5 + 1)}時間**")
 # 11-3 監査
 add("11-3", f"**{30 * 24 * 60 * 0.001:.1f}分**")
-# 05-2, 06-2 などの以前の問題は、作成時に個別に検証しており、ここには含めていない
+
+# ---- 以前に作成した問題 ----
+# 02-1 通信販売への参入
+m = 3000 - 1800; add("02-1", f"（1）**{n(24e6 / m)}セット**"); add("02-1", f"（2）**{n((24e6 + 6e6) / m)}セット**"); add("02-1", f"（1）**{n(4 * 3000 * 0.4 * 2.5)}円**")
+# 02-2 事業ポートフォリオ
+add("02-2", f"**{n(120 / 1500 * 100)}％**"); add("02-2", f"**{1500 / 1000:g}回**"); add("02-2", f"**{n(60 / 400 * 100)}％**")
+# 03-1 ランレングス符号化（プログラムを実行）
+def encode(s):
+    res, i, inc = "", 0, 0
+    while i < len(s):
+        c, cnt = s[i], 1
+        while i + cnt < len(s) and s[i + cnt] == c: cnt += 1; inc += 1
+        res += c + str(cnt); i += cnt
+    return res, inc
+r, inc = encode("WWWWBBW"); add("03-1", f"（1）**{r}**"); add("03-1", f"（2）**{inc}回**")
+add("03-1", f"（1）**{len(encode('ABCDE')[0])}文字**（戻り値は {encode('ABCDE')[0]}）"); add("03-1", f"（1）**{encode('1112')[0]}**")
+# 03-2 最長共通部分列（表とたどり方を実行）
+s_, t_ = "ABCB", "BCAB"; L = [[0] * 5 for _ in range(5)]
+for i in range(1, 5):
+    for j in range(1, 5):
+        L[i][j] = L[i - 1][j - 1] + 1 if s_[i - 1] == t_[j - 1] else max(L[i - 1][j], L[i][j - 1])
+add("03-2", f"- ア：**{L[2][4]}**"); add("03-2", f"- イ：**{L[3][2]}**"); add("03-2", f"- ウ：**{L[4][3]}**")
+row = lambda i: " | ".join(map(str, L[i]))
+add("03-2", f"| 1（A） | {row(1)} |"); add("03-2", f"| 3（C） | {L[3][0]} | {L[3][1]} | イ | {L[3][3]} | {L[3][4]} |"); add("03-2", f"| 4（B） | {L[4][0]} | {L[4][1]} | {L[4][2]} | ウ | {L[4][4]} |")
+i, j, res = 4, 4, ""
+while i > 0 and j > 0:
+    if s_[i - 1] == t_[j - 1]: res = s_[i - 1] + res; i -= 1; j -= 1
+    elif L[i - 1][j] >= L[i][j - 1]: i -= 1
+    else: j -= 1
+add("03-2", f"（2）**{res}**")
+# 03-3 最小ヒープ（プログラムを実行）
+heap, swaps = [None], 0
+def hadd(x):
+    global swaps
+    heap.append(x); k = len(heap) - 1
+    while k > 1 and heap[k // 2] > heap[k]: heap[k // 2], heap[k] = heap[k], heap[k // 2]; k //= 2; swaps += 1
+def hpoll():
+    top = heap[1]; heap[1] = heap[-1]; heap.pop(); size = len(heap) - 1; k = 1
+    while 2 * k <= size:
+        c = 2 * k
+        if c + 1 <= size and heap[c + 1] < heap[c]: c += 1
+        if heap[k] <= heap[c]: break
+        heap[k], heap[c] = heap[c], heap[k]; k = c
+    return top
+for x in (7, 4, 9, 2, 6, 1): hadd(x)
+add("03-3", "（1）**" + ", ".join(map(str, heap[1:])) + "**"); add("03-3", f"（2）**{swaps}回**")
+p1, p2 = hpoll(), hpoll(); add("03-3", f"1回目：**{p1}**　2回目：**{p2}**"); add("03-3", "（2）**" + ", ".join(map(str, heap[1:])) + "**")
+# 04-1 可用性と処理能力
+web = 1 - 0.05 ** 2; add("04-1", f"（1）**{0.99 * web * 0.98:.3f}**"); add("04-1", f"（2）**{0.99 * web * (1 - 0.02 ** 2):.3f}**"); add("04-1", f"**{math.ceil(120 / (50 * 0.7))}台**")
+# 05-1 サブネット
+import ipaddress
+nw = ipaddress.ip_network("192.168.20.0/26"); hosts = list(nw.hosts())
+add("05-1", f"**{len(hosts)}**"); add("05-1", f"**{hosts[0]}**"); add("05-1", f"{hosts[0]}〜{hosts[-1]}"); add("05-1", f"ブロードキャストアドレスはホスト部をすべて1にした {nw.broadcast_address}")
+# 06-1 研修の受講管理
+c = sqlite3.connect(":memory:")
+c.executescript("""create table 研修(研修コード text, 研修名 text, 定員 int); insert into 研修 values('T01','情報セキュリティ基礎',3),('T02','SQL入門',2),('T03','リーダシップ研修',2);
+create table 受講(研修コード text, 社員番号 text); insert into 受講 values('T01','E001'),('T01','E002'),('T02','E001'),('T02','E003');""")
+q = "select 研修.研修コード, 研修.定員 - {cnt} from 研修 {join} 受講 on 研修.研修コード=受講.研修コード group by 研修.研修コード, 研修.研修名, 研修.定員 having {cnt} < 研修.定員"
+ok = dict(c.execute(q.format(cnt="count(受講.社員番号)", join="left outer join")).fetchall())
+inner = dict(c.execute(q.format(cnt="count(受講.社員番号)", join="inner join")).fetchall()); star = dict(c.execute(q.format(cnt="count(*)", join="left outer join")).fetchall())
+add("06-1", "正しいSQL文の結果は、" + "と ".join(f"{k}（残席{v}）" for k, v in sorted(ok.items())).replace("）と", "）と"))
+add("06-1", f"（3）研修コード：**{sorted(set(ok) - set(inner))[0]}**"); add("06-1", f"（4）残席数：**{star['T03']}**")
+# 06-2 チケット予約
+c = sqlite3.connect(":memory:")
+c.executescript("""create table 会員(会員番号 text, 氏名 text); insert into 会員 values('M1','青木'),('M2','井上'),('M3','上田'),('M4','江藤');
+create table 予約(予約番号 int, 会員番号 text, 公演番号 text, 状態 text); insert into 予約 values(1,'M1','K1','確定'),(2,'M1','K2','確定'),(3,'M2','K1','取消'),(4,'M3','K1','確定'),(5,'M2','K2','確定');
+create table 予約明細(予約番号 int, 明細番号 int, 公演番号 text, 座席番号 text, 料金 int);
+insert into 予約明細 values(1,1,'K1','A1',8000),(1,2,'K1','A2',8000),(2,1,'K2','B1',12000),(2,2,'K2','B2',12000),(3,1,'K1','A3',8000),(4,1,'K1','A3',8000),(5,1,'K2','B3',12000);""")
+r = c.execute("""select 会員.氏名, sum(予約明細.料金) as 合計 from 会員 inner join 予約 on 会員.会員番号=予約.会員番号 inner join 予約明細 on 予約.予約番号=予約明細.予約番号
+ where 予約.状態='確定' group by 会員.会員番号, 会員.氏名 having sum(予約明細.料金)>=10000 order by 合計 desc""").fetchall()
+add("06-2", "（2）" + "、".join(f"**{a} {b:,}**" for a, b in r))
+shown = {x[0] for x in c.execute("select 会員.氏名 from 会員 left outer join 予約 on 会員.会員番号=予約.会員番号 where 予約.状態='確定' group by 会員.会員番号, 会員.氏名")}
+add("06-2", "（1）氏名：**" + "、".join(sorted({"青木", "井上", "上田", "江藤"} - shown)) + "**")
+fixed = c.execute("select count(*) from (select 会員.会員番号 from 会員 left outer join 予約 on 会員.会員番号=予約.会員番号 and 予約.状態='確定' group by 会員.会員番号)").fetchone()[0]
+assert fixed == 4, "06-2 修正後のSQL文で全会員が表示されない"
+# 07-1 換気制御
+add("07-1", f"（1）**{n(2046 / 1023)}ppm**"); add("07-1", f"（2）**{n(450 * 2046 / 1023)}ppm**"); clk = 1e6 / 8
+add("07-1", f"設定値：**{n(0.01 * clk)}**　最長の周期：**約{n(2 ** 16 / clk * 1000)}ミリ秒**")
+add("07-1", f"（1）**{next(k for k in range(1, 6) if (900 * (5 - k) + 1600 * k) / 5 >= 1500)}回目**")
+# 09-1 進捗管理（EVM）
+add("09-1", f"**{2000 / 2400:.2f}**"); add("09-1", f"**{2000 / 2200:.2f}**"); add("09-1", f"（1）**{n(4800 / (2000 / 2200))}万円**"); add("09-1", f"（2）**{n(2200 + (4800 - 2000))}万円**")
+# 09-2 スケジュール短縮
+pa, pb = 10 + 15 + 10 + 8, 10 + 20 + 12 + 8; add("09-2", f"**{max(pa, pb)}日**"); add("09-2", f"**{abs(pa - pb)}日**"); add("09-2", f"**{15 * 2 + 20 * 3}万円**")
+# 10-1 サービスレベル
+down = 90 + 60 + 90; add("10-1", f"**{n(down / 3)}分**"); add("10-1", f"**{(264 - down / 60) / 264 * 100:.1f}％**"); add("10-1", f"264 × 0.01 ＝ {264 * 0.01}時間（約{n(264 * 0.01 * 60)}分）")
 
 bad = 0
 for f, s in C:

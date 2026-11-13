@@ -34,7 +34,16 @@ def main():
     for L in (1, 2, 3):
         print(f"Lv{L}: {lv[L]}問  正解が単独最長 {longest[L]} ({round(longest[L]/lv[L]*100)}%)  単独最短 {shortest[L]} ({round(shortest[L]/lv[L]*100)}%)")
     print(f"合計 {n}問  正解が単独最長 {sum(longest.values())} ({round(sum(longest.values())/n*100)}%)  単独最短 {sum(shortest.values())} ({round(sum(shortest.values())/n*100)}%)")
+    # 「長い順で k 番目を選ぶ」だけの解き方が、どれだけ当たるか（4択の偶然は25%）
+    rank = []
+    for k in range(4):
+        ok = 0
+        for q in qs:
+            l = [len(plain(x)) for x in q["c"]]; order = sorted(range(4), key=lambda i: -l[i]); ok += order[k] == q["a"]
+        rank.append(round(ok / n * 100))
+    print("長い順で k 番目を選んだときの正答率:", " / ".join(f"{k+1}番目 {v}%" for k, v in enumerate(rank)))
     print(f"見て分かる長さの手がかり: {len(tells)} / {n}")
+    if max(rank) > 33: print("NG 長さの順位だけで33%を超えて正解できる"); sys.exit(1)
     if "-v" in sys.argv:
         for q in tells:
             print("\n" + q["id"], "LV", q["lv"]); print("Q:", plain(q["q"])[:150])

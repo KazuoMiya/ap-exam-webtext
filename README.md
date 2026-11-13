@@ -25,9 +25,9 @@ GitHub Actions は、ビルドの前に次の検証を実行し、1件でも問�
 
 ```
 python3 tools/validate.py      IDや選択肢の整合性、正解位置の分布、重複の疑い、科目Bの解答例の字数
-python3 tools/tell.py          正解だけが目立って長い選択肢の検出（-v で該当の問題を表示）
-python3 tools/verify_calc.py   計算、進数変換、SQL、トレースの187問を実際に計算して、正解と照合
-python3 tools/verify_b.py      科目B 19題の数値、SQL、プログラムのトレースを計算して、解答と照合
+python3 tools/tell.py          正解だけが目立って長い選択肢と、長さの順位の偏りの検出（-v で該当の問題を表示）
+python3 tools/verify_calc.py   計算、進数変換、SQL、トレースの218問を実際に計算して、正解と照合
+python3 tools/verify_b.py      科目B 32題の数値、SQL、プログラムのトレースを計算または実行して、解答と照合
 ```
 
 手元での確認用のスクリプトです。

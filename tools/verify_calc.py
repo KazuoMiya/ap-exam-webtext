@@ -84,6 +84,31 @@ def heap_pop(a):
         if r < len(a) and a[r] > a[m]: m = r
         if m == i: return a
         a[i], a[m] = a[m], a[i]; i = m
+def ins_sort(a, upto):
+    a = a[:]
+    for i in range(1, upto):
+        x, j = a[i], i - 1
+        while j >= 0 and a[j] > x: a[j + 1] = a[j]; j -= 1
+        a[j + 1] = x
+    return a
+def coins(amount, kinds):
+    best = [0] + [10 ** 9] * amount
+    for v in range(1, amount + 1): best[v] = min(best[v - k] + 1 for k in kinds if k <= v)
+    return best[amount]
+def greedy(amount, kinds_desc):
+    c = 0
+    for k in kinds_desc: c += amount // k; amount %= k
+    return c
+def preorder(vals):
+    tree = {}
+    def ins(node, v):
+        if node not in tree: tree[node] = v
+        else: ins(node * 2 if v < tree[node] else node * 2 + 1, v)
+    for v in vals: ins(1, v)
+    out = []
+    def walk(node):
+        if node in tree: out.append(tree[node]); walk(node * 2); walk(node * 2 + 1)
+    walk(1); return out
 def automaton(s):
     T = {"S0": {"0": "S0", "1": "S1"}, "S1": {"0": "S2", "1": "S1"}, "S2": {"0": "S0", "1": "S1"}}; st = "S0"
     for ch in s: st = T[st][ch]
@@ -170,9 +195,32 @@ CHECKS = {
  "18-23": lambda: 1000 * (1 - 0.4) * 0.4, "18-25": lambda: 100 + 0.3 * (120 - 100), "18-27": lambda: 500 + 200 - 300 + 100, "18-28": lambda: 600 / 0.3 - 600 / 0.4,
  "18-31": lambda: 2000000 / (1000 - 600), "18-32": lambda: (90 + 110 + 100) / 3, "18-36": lambda: (600 + 200) / 0.4, "18-37": lambda: 600 / 300 * 100,
  "18-38": lambda: (10 * 100 + 10 * 120) / 20 * 5, "18-39": lambda: 5 * 1.2 * 2,
+ # ---- 正解の選択肢が文になっている問題（計算した値を含む文字列で照合する） ----
+ "01-08": lambda: f"{-2 ** 7}〜{2 ** 7 - 1}", "01-44": lambda: ("0。" if bin(0b1011001).count("1") % 2 == 0 else "1。"),
+ "02-01": lambda: [1, 2, 3].pop(), "02-23": lambda: (lambda a, b: f"a＝{a}b＝{(a + b) + b}")(2, 3),
+ "02-26": lambda: "[" + "".join(map(str, ins_sort([5, 2, 4, 6, 1], 4))) + "]",
+ "02-31": lambda: f"最少は{coins(6, [1, 3, 4])}枚である。額面の大きい硬貨から順に使う貪欲法では{greedy(6, [4, 3, 1])}枚",
+ "02-44": lambda: "".join(map(str, preorder([50, 30, 70, 20, 40, 60]))),
+ "04-15": lambda: f"実効容量は{(6 - 2) * 4}Tバイトで2台", "04-30": lambda: f"構成Xは{(1 - 0.1 ** 2) * 0.9:.3f}構成Yは{0.9 ** 3 + 3 * 0.9 ** 2 * 0.1:.3f}",
+ "06-23": lambda: f"S＝{(1 + 1 + 1) % 2}C＝{(1 + 1 + 1) // 2}",
+ "08-16": lambda: "".join(k for k, (commit_after_cp, committed) in {"T1": (0, 1), "T2": (1, 1), "T3": (1, 1), "T4": (0, 0), "T5": (0, 0)}.items() if commit_after_cp and committed),
+ "08-26": lambda: f"UNIONは{len({1, 2, 3} | {2, 3, 4})}行UNIONALLは{3 + 3}行", "08-50": lambda: "COUNT(*)は5COUNT(評価)は3",
+ "09-16": lambda: (lambda pl: f"{2 ** (pl - 24)}個{net('0.0.0.0/%d' % pl).netmask}")(max(p for p in range(24, 31) if 2 ** (32 - p) - 2 >= 50)),
+ "09-30": lambda: str(ipaddress.ip_address("2001:0db8:0000:0000:0000:ff00:0042:8329")), "09-46": lambda: f"{2 ** (20 - 8)}個{2 ** (32 - 20) - 2}個",
+ "11-06": lambda: "".join(map(str, [1 - 1, 1, 100, 100 + 1])), "11-30": lambda: f"{210 // 30}スプリント", "11-38": lambda: f"判定条件網羅は2全経路の網羅は{2 * 2}",
+ "12-25": lambda: f"SV＝{600 - 800}万円CV＝{600 - 900}万円EAC＝{round(2000 / (600 / 900))}万円",
+ "12-26": lambda: min((c, k) for k, c in {"A": 8, "B": 3, "D": 5}.items())[1] + "を1日短縮する" if 4 + 6 + 5 > 4 + 3 + 5 else "不一致",
+ "12-27": lambda: (lambda ev: f"案{'A' if ev > 200 else 'B'}を選ぶ。期待値は{round(max(ev, 200))}万円")(0.6 * 500 - 0.4 * 200),
+ "13-10": lambda: f"PUEは{1500 / 1000:g}", "13-28": lambda: f"一次解決率は{round(120 / 150 * 100)}％",
+ "15-09": lambda: f"NPVは約{sum(200 / 1.1 ** k for k in (1, 2, 3)) - 500:.1f}万円",
+ "15-27": lambda: f"案XのNPVは約{60 / 1.1 + 60 / 1.21 - 100:.1f}万円案YのNPVは約{125 / 1.21 - 100:.1f}万円",
+ "16-34": lambda: f"コンバージョン率{round(200 / 10000 * 100)}％CPA{round(400000 / 200)}円",
+ "18-22": lambda: f"流動比率{round(300 / 200 * 100)}％自己資本比率{round(400 / 1000 * 100)}％", "18-29": lambda: f"今後{300 * 4}万円",
+ "18-33": lambda: f"売上総利益率{round((2000 - 1400) / 2000 * 100)}％売上高営業利益率{round((2000 - 1400 - 400) / 2000 * 100)}％",
+ "18-35": lambda: f"財務レバレッジ{round(12 / (4 * 1.5))}倍自己資本比率{round(100 / (12 / (4 * 1.5)))}％",
 }
 
-def norm(s): return re.sub(r"[\s、,，]", "", re.sub(r"<[^>]+>", "", s)).replace("−", "-")
+def norm(s): return re.sub(r"[\s、,，]", "", re.sub(r"<[^>]+>", "", s)).replace("−", "-").replace("=", "＝")
 def main():
     qs = {q["id"]: q for q in tell.load()}; bad = 0
     for i, f in CHECKS.items():
